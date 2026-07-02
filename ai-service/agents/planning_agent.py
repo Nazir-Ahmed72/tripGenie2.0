@@ -4,6 +4,10 @@ from datetime import datetime, timedelta
 from groq import AsyncGroq
 from dotenv import load_dotenv
 
+# Flight data: AviationStack API  (via research_agent.get_flights)
+# Hotel data:  Foursquare API     (via research_agent.get_hotels)
+# Activity data: Foursquare API   (via research_agent.get_activities)
+
 load_dotenv()
 client = AsyncGroq(api_key=os.getenv("GROQ_API_KEY"))
 
@@ -54,7 +58,9 @@ async def build_itinerary(preferences: dict, research_data: dict) -> dict:
     hotels = research_data.get("hotels", [])
     activities = research_data.get("activities", [])
 
+    # Select cheapest flight (AviationStack data includes a computed 'price' field)
     selected_flight = min(flights, key=lambda f: f.get("price", 9999)) if flights else None
+    # Select first hotel (Foursquare data; price is stored as 'price_per_night')
     selected_hotel = hotels[0] if hotels else None
 
     daily_schedule = assign_time_slots(activities, num_days)
@@ -94,16 +100,20 @@ Return ONLY the JSON array. No explanation, no markdown."""
         day_summaries = json.loads(raw)
         if not isinstance(day_summaries, list):
             raise ValueError("Not a list")
+        if len(day_summaries) < num_days:
+            raise ValueError(f"LLM provided only {len(day_summaries)} summaries for a {num_days} day trip.")
     except Exception as e:
-        print(f"LLM error: {e}")
-        day_summaries = [f"Day {i+1} exploring {destination}." for i in range(num_days)]
+        raise RuntimeError(f"Planning Agent LLM call failed: {str(e)}")
 
     for i, day in enumerate(daily_schedule):
-        day["summary"] = day_summaries[i] if i < len(day_summaries) else f"Day {i+1} in {destination}."
+        day["summary"] = day_summaries[i]
         day["date"] = (datetime.strptime(departure_date, "%Y-%m-%d") + timedelta(days=i)).strftime("%Y-%m-%d")
 
-    flight_cost = (selected_flight["price"] * num_travelers) if selected_flight else 0
-    hotel_cost = (selected_hotel["price_per_night"] * num_days * num_travelers) if selected_hotel else 0
+    # Flight cost: AviationStack-sourced flights carry a computed 'price' per person
+    flight_cost = (selected_flight.get("price", 0) * num_travelers) if selected_flight else 0
+    # Hotel cost: Foursquare-sourced hotels use 'price_per_night'
+    hotel_cost = (selected_hotel.get("price_per_night", 0) * num_days * num_travelers) if selected_hotel else 0
+    # Activity cost: Foursquare-sourced activities use 'estimated_cost' per person
     activity_cost = sum(
         day["slots"].get(slot, {}).get("estimated_cost", 0) or 0
         for day in daily_schedule
