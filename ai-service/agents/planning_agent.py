@@ -70,38 +70,41 @@ async def build_itinerary(preferences: dict, research_data: dict) -> dict:
 
 Activities: {activity_names}
 
-Return ONLY a JSON array of exactly {num_days} strings. Example:
-["Explore the historic old town and visit the national museum.", "Relax at the waterfront and enjoy a local food tour."]
-
-Return ONLY the JSON array. No explanation, no markdown."""
+Return only a JSON object in this exact format, with exactly {num_days} descriptions:
+{{"summaries":["Explore the historic old town and visit the national museum.","Relax at the waterfront and enjoy a local food tour."]}}
+Each summary must be one concise sentence. Do not include markdown or extra fields."""
 
     try:
         response = await client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model="openai/gpt-oss-120b",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.5,
-            max_tokens=500
+            response_format={"type": "json_object"},
+            extra_body={
+                "max_completion_tokens": 2048,
+                "reasoning_effort": "low",
+                "reasoning_format": "hidden",
+            },
         )
-        raw = response.choices[0].message.content.strip()
-        if "```" in raw:
-            parts = raw.split("```")
-            for part in parts:
-                part = part.strip()
-                if part.startswith("json"):
-                    part = part[4:].strip()
-                if part.startswith("["):
-                    raw = part
-                    break
-        raw = raw.strip()
-        start = raw.find("[")
-        end = raw.rfind("]") + 1
-        if start != -1 and end > start:
-            raw = raw[start:end]
-        day_summaries = json.loads(raw)
-        if not isinstance(day_summaries, list):
-            raise ValueError("Not a list")
-        if len(day_summaries) < num_days:
-            raise ValueError(f"LLM provided only {len(day_summaries)} summaries for a {num_days} day trip.")
+        choice = response.choices[0]
+        raw = choice.message.content
+        if not raw:
+            raise ValueError(
+                "Groq returned no text "
+                f"(finish_reason={choice.finish_reason!r}). "
+                "Check the model response and completion token limit."
+            )
+
+        result = json.loads(raw)
+        day_summaries = result.get("summaries") if isinstance(result, dict) else None
+        if (
+            not isinstance(day_summaries, list)
+            or len(day_summaries) != num_days
+            or not all(isinstance(summary, str) and summary.strip() for summary in day_summaries)
+        ):
+            raise ValueError(
+                f"Groq must return exactly {num_days} non-empty string summaries."
+            )
     except Exception as e:
         raise RuntimeError(f"Planning Agent LLM call failed: {str(e)}")
 

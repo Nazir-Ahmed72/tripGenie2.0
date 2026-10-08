@@ -4,10 +4,11 @@ from pydantic import BaseModel
 from typing import Optional, List
 import os
 import logging
+from pathlib import Path
 from dotenv import load_dotenv
 
 # 1. Load environment variables before importing agents
-load_dotenv()
+load_dotenv(dotenv_path=Path(__file__).resolve().parent / ".env")
 
 # 2. Validate required environment variables
 REQUIRED_KEYS = ["GROQ_API_KEY", "AVIATIONSTACK_API_KEY", "FOURSQUARE_CLIENT_ID", "FOURSQUARE_CLIENT_SECRET"]
