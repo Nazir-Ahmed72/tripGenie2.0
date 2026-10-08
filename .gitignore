@@ -83,6 +83,11 @@ frontend/build/
 frontend/dist/
 frontend/.cache/
 
+node_modules/
+venv/
+.env
+build/
+
 # Testing
 coverage/
 .nyc_output/
