@@ -28,7 +28,8 @@ pipeline {
             steps {
                 withCredentials([file(credentialsId: 'tripgenie-env', variable: 'ENV_FILE')]) {
                     sh '''
-                        cp "$ENV_FILE" .env
+                        rm -f .env
+                        cp "$ENV_FILE" .env && chmod 600 .env
                         docker compose -f $COMPOSE_FILE down --remove-orphans
                         docker compose -f $COMPOSE_FILE up -d
                     '''
