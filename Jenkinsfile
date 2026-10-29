@@ -64,7 +64,7 @@ pipeline {
                 body: """Build result: ${currentBuild.currentResult}
 Job: ${env.JOB_NAME} #${env.BUILD_NUMBER}
 Pushed by: ${env.COMMIT_EMAIL}
-App: http://YOUR_ELASTIC_IP:4000
+App: http://51.21.23.233:4000
 Console: ${env.BUILD_URL}console""",
                 attachLog: true
             )
